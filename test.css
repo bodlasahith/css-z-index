@@ -1,0 +1,15 @@
+#switch {
+  z-index: 10;
+}
+
+#next {
+  z-index: 10;
+}
+
+#prev {
+  z-index: 10;
+}
+
+.modal {
+  z-index: 1;
+}
