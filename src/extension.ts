@@ -1,5 +1,8 @@
 import * as vscode from "vscode";
+import * as fs from "fs";
 import postcss from "postcss";
+import { load } from "cheerio";
+import { Element } from "domhandler";
 
 class ZIndexItem extends vscode.TreeItem {
   constructor(public readonly label: string, public readonly zIndex: string) {
@@ -87,7 +90,37 @@ function createWebview(
     { enableScripts: true }
   );
 
-  panel.webview.html = getWebviewContent(zIndexData);
+  const cssFilePath = vscode.window.activeTextEditor?.document.uri.fsPath;
+  if (!cssFilePath) {
+    vscode.window.showErrorMessage("No active CSS file found.");
+    return;
+  }
+
+  const htmlFilePath = cssFilePath.replace(/\.css$/, ".html");
+  if (!fs.existsSync(htmlFilePath)) {
+    vscode.window.showErrorMessage("No corresponding HTML file found.");
+    return;
+  }
+
+  const htmlContent = fs.readFileSync(htmlFilePath, "utf-8");
+  const $ = load(htmlContent);
+
+  // Extract DOM structure
+  const htmlStructure: { tag: string; id: string; classList: string[]; zIndex: number }[] = [];
+  $("*").each((_, element) => {
+    const tag = (element as Element).tagName;
+    const id = $(element).attr("id") || "";
+    const classList = ($(element).attr("class") || "").split(/\s+/);
+    const selector = id ? `#${id}` : classList.length ? `.${classList.join(".")}` : tag;
+
+    // Match selector with CSS data
+    const zIndexEntry = zIndexData.find((entry) => entry.selector === selector);
+    const zIndex = zIndexEntry ? parseInt(zIndexEntry.value, 10) : 0;
+
+    htmlStructure.push({ tag, id, classList, zIndex });
+  });
+
+  panel.webview.html = getWebviewContent(zIndexData, htmlStructure);
 
   // Keep track of highlights state
   let highlightsEnabled = false;
@@ -114,7 +147,10 @@ function createWebview(
 }
 
 // Helper function to generate the webview HTML content
-function getWebviewContent(zIndexData: { selector: string; value: string }[]) {
+function getWebviewContent(
+  zIndexData: { selector: string; value: string }[],
+  htmlStructure: { tag: string; id: string; classList: string[]; zIndex: number }[]
+) {
   const labels = zIndexData.map((item) => item.selector);
   const data = zIndexData.map((item) => parseInt(item.value, 10));
 
@@ -305,8 +341,6 @@ function highlightZIndexDeclarations(
   activeDecoratedEditor = editor;
   editor.setDecorations(decorationType, decorations);
 }
-
-
 
 export function activate(context: vscode.ExtensionContext) {
   const zIndexProvider = new ZIndexProvider();
