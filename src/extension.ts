@@ -106,7 +106,14 @@ function createWebview(
   const $ = load(htmlContent);
 
   // Extract DOM structure
-  const htmlStructure: { tag: string; id: string; classList: string[]; zIndex: number }[] = [];
+  const htmlStructure: {
+    tag: string;
+    id: string;
+    classList: string[];
+    zIndex: number;
+    width: number;
+    height: number;
+  }[] = [];
   $("*").each((_, element) => {
     const tag = (element as Element).tagName;
     const id = $(element).attr("id") || "";
@@ -117,7 +124,11 @@ function createWebview(
     const zIndexEntry = zIndexData.find((entry) => entry.selector === selector);
     const zIndex = zIndexEntry ? parseInt(zIndexEntry.value, 10) : 0;
 
-    htmlStructure.push({ tag, id, classList, zIndex });
+    // Extract width and height if present
+    const width = parseFloat($(element).css("width") || "0") || 0;
+    const height = parseFloat($(element).css("height") || "0") || 0;
+
+    htmlStructure.push({ tag, id, classList, zIndex, width, height });
   });
 
   panel.webview.html = getWebviewContent(zIndexData, htmlStructure);
@@ -149,7 +160,14 @@ function createWebview(
 // Helper function to generate the webview HTML content
 function getWebviewContent(
   zIndexData: { selector: string; value: string }[],
-  htmlStructure: { tag: string; id: string; classList: string[]; zIndex: number }[]
+  htmlStructure: {
+    tag: string;
+    id: string;
+    classList: string[];
+    zIndex: number;
+    width: number;
+    height: number;
+  }[]
 ) {
   const labels = zIndexData.map((item) => item.selector);
   const data = zIndexData.map((item) => parseInt(item.value, 10));
@@ -160,11 +178,16 @@ function getWebviewContent(
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
       <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/three/examples/js/controls/OrbitControls.js"></script>
       <style>
         body {
           font-family: Arial, sans-serif;
           padding: 20px;
+          margin: 0;
+          overflow-y: auto;
+          overflow-x: auto;
         }
         canvas {
           max-width: 100%;
@@ -173,6 +196,7 @@ function getWebviewContent(
           width: 100%;
           border-collapse: collapse;
           margin-top: 20px;
+          margin-bottom: 20px;
         }
         th, td {
           border: 1px solid #ddd;
@@ -197,6 +221,19 @@ function getWebviewContent(
         }
         #toggle-button:hover {
           background-color: #005fa3;
+        }
+        #info {
+          padding: 10px;
+          border-radius: 5px;
+          z-index: 100;
+          font-size: 13px;
+          margin-bottom: 60px;
+        }
+        #three-container {
+          bottom: 0;
+          width: 95%;
+          height: 400px;
+          position: relative;
         }
       </style>
     </head>
@@ -224,6 +261,11 @@ function getWebviewContent(
             .join("")}
         </tbody>
       </table>
+      <div id="three-container"></div>
+      <div id="info">
+        <h3>3D Z-Index Topology Map</h3>
+        <p>Hover over elements to view details.</p>
+      </div>
       <script>
         const vscode = acquireVsCodeApi();
         let highlightsEnabled = false;
@@ -298,6 +340,115 @@ function getWebviewContent(
             });
           });
         });
+
+        const container = document.getElementById('three-container');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.25;
+        controls.enableZoom = true;
+        controls.enablePan = true;
+        controls.maxPolarAngle = Math.PI / 2;
+        controls.minDistance = 5;
+        controls.maxDistance = 50;
+
+        const gridHelper = new THREE.GridHelper(100, 100);
+        scene.add(gridHelper);
+        const axesHelper = new THREE.AxesHelper(5);
+        scene.add(axesHelper);
+
+        const light = new THREE.PointLight(0xffffff, 1, 100);
+        light.position.set(10, 10, 10);
+        scene.add(light);
+
+        // 3D Visualization
+        const htmlData = ${JSON.stringify(htmlStructure)};
+
+        const elements = [];
+
+        htmlData.forEach((element, index) => {
+          const { tag, id, classList, zIndex, width, height } = element;
+
+          // Create a box for each element with dimensions based on its x-y size and elevation based on z-index
+          const elevation = zIndex || 0;
+
+          const geometry = new THREE.BoxGeometry(width || 1, elevation || 1, height || 1);
+          const material = new THREE.MeshStandardMaterial({ color: 0x007acc });
+          const mesh = new THREE.Mesh(geometry, material);
+
+          mesh.position.set(index % 10, elevation / 2, Math.floor(index / 10));
+          mesh.userData = { tag, id, classList, zIndex };
+          elements.push(mesh);
+          scene.add(mesh);
+        });
+
+        // // Add a representation of the DOM with screen dimensions
+        // const screenWidth = window.innerWidth / 100; // Scale down for visualization
+        // const screenHeight = window.innerHeight / 100; // Scale down for visualization
+        // const screenGeometry = new THREE.BoxGeometry(screenWidth, 1, screenHeight);
+        // const screenMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00, opacity: 0.5, transparent: true });
+        // const screenMesh = new THREE.Mesh(screenGeometry, screenMaterial);
+        // screenMesh.position.set(0, -0.05, 0); // Slightly below the grid
+        // scene.add(screenMesh);
+
+        camera.position.set(5, 5, 20);
+        camera.lookAt(scene.position);
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const highlightMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+
+        function onMouseMove(event) {
+          const rect = container.getBoundingClientRect();
+          mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+          mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+          raycaster.setFromCamera(mouse, camera);
+          const intersects = raycaster.intersectObjects(elements, true); // Ensure recursive check for child objects
+
+          elements.forEach((el) => {
+            if (!el.userData.defaultMaterial) {
+              el.userData.defaultMaterial = el.material; // Store default material if not already stored
+            }
+            el.material = el.userData.defaultMaterial;
+          });
+
+          if (intersects.length > 0) {
+            const selected = intersects[0].object;
+            selected.material = highlightMaterial;
+
+            const { tag, id, classList, zIndex } = selected.userData;
+            document.getElementById('info').innerHTML = \`
+              <h3>Element Details</h3>
+              <p>Tag: \${tag}</p>
+              <p>ID: \${id || 'None'}</p>
+              <p>Classes: \${classList.join(', ') || 'None'}</p>
+              <p>Z-Index: \${zIndex || 'None'}</p>
+            \`;
+          } else {
+            document.getElementById('info').innerHTML = "<h3>3D Z-Index Topology Map</h3><p>Hover over elements to view details.</p>";
+          }
+        }
+
+        container.addEventListener('mousemove', onMouseMove);
+
+        function animate() {
+          requestAnimationFrame(animate);
+          renderer.render(scene, camera);
+          controls.update();
+        }
+
+        window.addEventListener('resize', () => {
+          camera.aspect = container.clientWidth / container.clientHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+        animate();
       </script>
     </body>
     </html>
@@ -357,13 +508,28 @@ export function activate(context: vscode.ExtensionContext) {
         const cssContent = document.getText();
         const root = postcss.parse(cssContent);
 
-        const zIndexes: { selector: string; value: string }[] = [];
+        const zIndexes: { selector: string; value: string; width: string; height: string }[] = [];
 
-        root.walkDecls("z-index", (decl) => {
+        root.walkRules((rule) => {
+          let zIndexValue = "0";
+          let widthValue = "0";
+          let heightValue = "0";
+
+          rule.walkDecls((decl) => {
+            if (decl.prop === "z-index") {
+              zIndexValue = decl.value;
+            } else if (decl.prop === "width") {
+              widthValue = decl.value;
+            } else if (decl.prop === "height") {
+              heightValue = decl.value;
+            }
+          });
+
           zIndexes.push({
-            selector:
-              decl.parent && "selector" in decl.parent ? (decl.parent as any).selector : "unknown",
-            value: decl.value,
+            selector: rule.selector,
+            value: zIndexValue,
+            width: widthValue,
+            height: heightValue,
           });
         });
 
