@@ -40,4 +40,10 @@ To package and deploy the z-index-visualizer extension locally, follow these ste
     ```
   - Open the project in Visual Studio Code and press `F5` to launch a local testing environment. Use the generated `out` file to test the extension on a CSS file.
 
+
+
+https://github.com/user-attachments/assets/3c2664f3-7ede-4140-b23d-51148206f1e8
+
+
+
 **Enjoy!**
