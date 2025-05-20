@@ -79,7 +79,26 @@ function toggleHighlights(
 }
 
 function createWebview(
-  zIndexData: { selector: string; value: string; width: string; height: string }[],
+  zIndexData: {
+    selector: string;
+    value: string;
+    width: string;
+    height: string;
+    margin: string;
+    padding: string;
+    marginTop: string;
+    marginBottom: string;
+    marginLeft: string;
+    marginRight: string;
+    paddingTop: string;
+    paddingBottom: string;
+    paddingLeft: string;
+    paddingRight: string;
+    left: string;
+    right: string;
+    top: string;
+    bottom: string;
+  }[],
   cssDocument: vscode.TextDocument
 ) {
   const panel = vscode.window.createWebviewPanel(
@@ -112,6 +131,20 @@ function createWebview(
     zIndex: number;
     width: number;
     height: number;
+    margin: number;
+    padding: number;
+    marginTop: number;
+    marginBottom: number;
+    marginLeft: number;
+    marginRight: number;
+    paddingTop: number;
+    paddingBottom: number;
+    paddingLeft: number;
+    paddingRight: number;
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
   }[] = [];
   $("*").each((_, element) => {
     const tag = (element as Element).tagName;
@@ -125,12 +158,43 @@ function createWebview(
 
     const width = zIndexEntry ? parseInt(zIndexEntry.width, 10) : 0;
     const height = zIndexEntry ? parseInt(zIndexEntry.height, 10) : 0;
+    const margin = zIndexEntry ? parseInt(zIndexEntry.margin, 10) : 0;
+    const padding = zIndexEntry ? parseInt(zIndexEntry.padding, 10) : 0;
+    const marginTop = zIndexEntry ? parseInt(zIndexEntry.marginTop, 10) : 0;
+    const marginBottom = zIndexEntry ? parseInt(zIndexEntry.marginBottom, 10) : 0;
+    const marginLeft = zIndexEntry ? parseInt(zIndexEntry.marginLeft, 10) : 0;
+    const marginRight = zIndexEntry ? parseInt(zIndexEntry.marginRight, 10) : 0;
+    const paddingTop = zIndexEntry ? parseInt(zIndexEntry.paddingTop, 10) : 0;
+    const paddingBottom = zIndexEntry ? parseInt(zIndexEntry.paddingBottom, 10) : 0;
+    const paddingLeft = zIndexEntry ? parseInt(zIndexEntry.paddingLeft, 10) : 0;
+    const paddingRight = zIndexEntry ? parseInt(zIndexEntry.paddingRight, 10) : 0;
+    const left = zIndexEntry ? parseInt(zIndexEntry.left, 10) : 0;
+    const right = zIndexEntry ? parseInt(zIndexEntry.right, 10) : 0;
+    const top = zIndexEntry ? parseInt(zIndexEntry.top, 10) : 0;
+    const bottom = zIndexEntry ? parseInt(zIndexEntry.bottom, 10) : 0;
 
-    // Extract width and height if present
-    // const width = parseFloat($(element).css("width") || "0") || 0;
-    // const height = parseFloat($(element).css("height") || "0") || 0;
-
-    htmlStructure.push({ tag, id, classList, zIndex, width, height });
+    htmlStructure.push({
+      tag,
+      id,
+      classList,
+      zIndex,
+      width,
+      height,
+      margin,
+      padding,
+      marginTop,
+      marginBottom,
+      marginLeft,
+      marginRight,
+      paddingTop,
+      paddingBottom,
+      paddingLeft,
+      paddingRight,
+      left,
+      right,
+      top,
+      bottom,
+    });
   });
 
   panel.webview.html = getWebviewContent(zIndexData, htmlStructure);
@@ -169,15 +233,24 @@ function getWebviewContent(
     zIndex: number;
     width: number;
     height: number;
+    margin: number;
+    padding: number;
+    marginTop: number;
+    marginBottom: number;
+    marginLeft: number;
+    marginRight: number;
+    paddingTop: number;
+    paddingBottom: number;
+    paddingLeft: number;
+    paddingRight: number;
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
   }[]
 ) {
   const labels = zIndexData.map((item) => item.selector);
   const data = zIndexData.map((item) => parseInt(item.value, 10));
-
-  const outputChannel = vscode.window.createOutputChannel("Z-Index Logger");
-  outputChannel.appendLine("HTML Structure:");
-  outputChannel.appendLine(JSON.stringify(htmlStructure, null, 2)); // Pretty print
-  outputChannel.show(); // Opens the output channel
 
   return `
     <!DOCTYPE html>
@@ -364,9 +437,9 @@ function getWebviewContent(
         controls.minDistance = 5;
         controls.maxDistance = 50;
 
-        const gridHelper = new THREE.GridHelper(100, 100);
+        const gridHelper = new THREE.GridHelper(5000, 5000);
         scene.add(gridHelper);
-        const axesHelper = new THREE.AxesHelper(5);
+        const axesHelper = new THREE.AxesHelper(50, 50);
         scene.add(axesHelper);
 
         const light = new THREE.PointLight(0xffffff, 1, 100);
@@ -383,6 +456,11 @@ function getWebviewContent(
           return isNaN(numeric) ? 1 : numeric;
         }
 
+        function parseMarginAndPadding(value, fallback) {
+          const numeric = parseFloat(value);
+          return isNaN(numeric) || numeric === 0 ? parseFloat(fallback) || 0 : numeric;
+        }
+
         function getRandomColor() {
           const letters = '0123456789ABCDEF';
           let color = '#';
@@ -392,24 +470,28 @@ function getWebviewContent(
           return color;
         }
 
-        htmlData.forEach((element, index) => {
-          const { tag, id, classList, zIndex, width, height } = element;
+        htmlData.forEach((element) => {
+          const { tag, id, classList, zIndex, width, height, margin, padding, marginTop, marginBottom, marginLeft, marginRight, paddingTop, paddingBottom, paddingLeft, paddingRight, left, right, top, bottom } = element;
 
-          const boxWidth = parseLength(width);
-          const boxHeight = parseLength(height);
+          const effectiveWidth = parseLength(width) + parseMarginAndPadding(margin, marginLeft) + parseMarginAndPadding(margin, marginRight) + parseMarginAndPadding(padding, paddingLeft) + parseMarginAndPadding(padding, paddingRight);
+          const effectiveHeight = parseLength(height) + parseMarginAndPadding(margin, marginTop) + parseMarginAndPadding(margin, marginBottom) + parseMarginAndPadding(padding, paddingTop) + parseMarginAndPadding(padding, paddingBottom);
+          const effectiveLeft = parseLength(left) + parseMarginAndPadding(margin, marginLeft) + parseMarginAndPadding(padding, paddingLeft);
+          const effectiveRight = parseLength(right) + parseMarginAndPadding(margin, marginRight) + parseMarginAndPadding(padding, paddingRight);
+          const effectiveTop = parseLength(top) + parseMarginAndPadding(margin, marginTop) + parseMarginAndPadding(padding, paddingTop);
+          const effectiveBottom = parseLength(bottom) + parseMarginAndPadding(margin, marginBottom) + parseMarginAndPadding(padding, paddingBottom);
           const elevation = (zIndex || 0) * 0.2 + 0.01; // z-index → elevation, min > 0
 
-          const geometry = new THREE.BoxGeometry(boxWidth, elevation, boxHeight);
+          const geometry = new THREE.BoxGeometry(effectiveWidth, elevation, effectiveHeight);
           const material = new THREE.MeshStandardMaterial({ color: getRandomColor(), transparent: true, opacity: 0.85 });
           const mesh = new THREE.Mesh(geometry, material);
 
           mesh.position.set(
-            (index % 10) * 2,  // spread on x-axis
-            elevation / 2,     // sit on base plane
-            Math.floor(index / 10) * 2 // spread on z-axis (depth)
+            effectiveLeft - effectiveRight, // Use left/right to determine x position
+            elevation / 2,                 // Elevation based on z-index
+            effectiveTop - effectiveBottom  // Use top/bottom to determine z position
           );
 
-          mesh.userData = { tag, id, classList, zIndex, width, height };
+          mesh.userData = { tag, id, classList, zIndex };
           elements.push(mesh);
           scene.add(mesh);
         });
@@ -526,12 +608,45 @@ export function activate(context: vscode.ExtensionContext) {
         const cssContent = document.getText();
         const root = postcss.parse(cssContent);
 
-        const zIndexes: { selector: string; value: string; width: string; height: string }[] = [];
+        const zIndexes: {
+          selector: string;
+          value: string;
+          width: string;
+          height: string;
+          margin: string;
+          padding: string;
+          marginTop: string;
+          marginBottom: string;
+          marginLeft: string;
+          marginRight: string;
+          paddingTop: string;
+          paddingBottom: string;
+          paddingLeft: string;
+          paddingRight: string;
+          left: string;
+          right: string;
+          top: string;
+          bottom: string;
+        }[] = [];
 
         root.walkRules((rule) => {
           let zIndexValue = "0";
           let widthValue = "0";
           let heightValue = "0";
+          let marginValue = "0";
+          let paddingValue = "0";
+          let marginTop = "0";
+          let marginBottom = "0";
+          let marginLeft = "0";
+          let marginRight = "0";
+          let paddingTop = "0";
+          let paddingBottom = "0";
+          let paddingLeft = "0";
+          let paddingRight = "0";
+          let leftValue = "0";
+          let rightValue = "0";
+          let topValue = "0";
+          let bottomValue = "0";
 
           rule.walkDecls((decl) => {
             if (decl.prop === "z-index") {
@@ -540,6 +655,34 @@ export function activate(context: vscode.ExtensionContext) {
               widthValue = decl.value;
             } else if (decl.prop === "height") {
               heightValue = decl.value;
+            } else if (decl.prop === "margin") {
+              marginValue = decl.value;
+            } else if (decl.prop === "padding") {
+              paddingValue = decl.value;
+            } else if (decl.prop === "margin-top") {
+              marginTop = decl.value;
+            } else if (decl.prop === "margin-bottom") {
+              marginBottom = decl.value;
+            } else if (decl.prop === "margin-left") {
+              marginLeft = decl.value;
+            } else if (decl.prop === "margin-right") {
+              marginRight = decl.value;
+            } else if (decl.prop === "padding-top") {
+              paddingTop = decl.value;
+            } else if (decl.prop === "padding-bottom") {
+              paddingBottom = decl.value;
+            } else if (decl.prop === "padding-left") {
+              paddingLeft = decl.value;
+            } else if (decl.prop === "padding-right") {
+              paddingRight = decl.value;
+            } else if (decl.prop === "left") {
+              leftValue = decl.value;
+            } else if (decl.prop === "right") {
+              rightValue = decl.value;
+            } else if (decl.prop === "top") {
+              topValue = decl.value;
+            } else if (decl.prop === "bottom") {
+              bottomValue = decl.value;
             }
           });
 
@@ -548,6 +691,20 @@ export function activate(context: vscode.ExtensionContext) {
             value: zIndexValue,
             width: widthValue,
             height: heightValue,
+            margin: marginValue,
+            padding: paddingValue,
+            marginTop,
+            marginBottom,
+            marginLeft,
+            marginRight,
+            paddingTop,
+            paddingBottom,
+            paddingLeft,
+            paddingRight,
+            left: leftValue,
+            right: rightValue,
+            top: topValue,
+            bottom: bottomValue,
           });
         });
 
