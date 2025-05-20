@@ -6,20 +6,20 @@ body {
 
 #switch {
   z-index: 10;
-  width: 200px;
-  height: 50px;
+  width: 10px;
+  height: 15px;
 }
 
 #next {
   z-index: 10;
-  width: 200px;
-  height: 50px;
+  width: 20px;
+  height: 5px;
 }
 
 #prev {
   z-index: 10;
-  width: 200px;
-  height: 50px;
+  width: 20px;
+  height: 5px;
 }
 
 .modal {
@@ -27,6 +27,6 @@ body {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  width: 10%;
+  height: 10%;
 }

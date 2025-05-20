@@ -79,8 +79,7 @@ function toggleHighlights(
 }
 
 function createWebview(
-  context: vscode.ExtensionContext,
-  zIndexData: { selector: string; value: string }[],
+  zIndexData: { selector: string; value: string; width: string; height: string }[],
   cssDocument: vscode.TextDocument
 ) {
   const panel = vscode.window.createWebviewPanel(
@@ -124,9 +123,12 @@ function createWebview(
     const zIndexEntry = zIndexData.find((entry) => entry.selector === selector);
     const zIndex = zIndexEntry ? parseInt(zIndexEntry.value, 10) : 0;
 
+    const width = zIndexEntry ? parseInt(zIndexEntry.width, 10) : 0;
+    const height = zIndexEntry ? parseInt(zIndexEntry.height, 10) : 0;
+
     // Extract width and height if present
-    const width = parseFloat($(element).css("width") || "0") || 0;
-    const height = parseFloat($(element).css("height") || "0") || 0;
+    // const width = parseFloat($(element).css("width") || "0") || 0;
+    // const height = parseFloat($(element).css("height") || "0") || 0;
 
     htmlStructure.push({ tag, id, classList, zIndex, width, height });
   });
@@ -171,6 +173,11 @@ function getWebviewContent(
 ) {
   const labels = zIndexData.map((item) => item.selector);
   const data = zIndexData.map((item) => parseInt(item.value, 10));
+
+  const outputChannel = vscode.window.createOutputChannel("Z-Index Logger");
+  outputChannel.appendLine("HTML Structure:");
+  outputChannel.appendLine(JSON.stringify(htmlStructure, null, 2)); // Pretty print
+  outputChannel.show(); // Opens the output channel
 
   return `
     <!DOCTYPE html>
@@ -371,30 +378,41 @@ function getWebviewContent(
 
         const elements = [];
 
+        function parseLength(value) {
+          const numeric = parseFloat(value);
+          return isNaN(numeric) ? 1 : numeric;
+        }
+
+        function getRandomColor() {
+          const letters = '0123456789ABCDEF';
+          let color = '#';
+          for (let i = 0; i < 6; i++) {
+            color += letters[Math.floor(Math.random() * 16)];
+          }
+          return color;
+        }
+
         htmlData.forEach((element, index) => {
           const { tag, id, classList, zIndex, width, height } = element;
 
-          // Create a box for each element with dimensions based on its x-y size and elevation based on z-index
-          const elevation = zIndex || 0;
+          const boxWidth = parseLength(width);
+          const boxHeight = parseLength(height);
+          const elevation = (zIndex || 0) * 0.2 + 0.01; // z-index → elevation, min > 0
 
-          const geometry = new THREE.BoxGeometry(width || 1, elevation || 1, height || 1);
-          const material = new THREE.MeshStandardMaterial({ color: 0x007acc });
+          const geometry = new THREE.BoxGeometry(boxWidth, elevation, boxHeight);
+          const material = new THREE.MeshStandardMaterial({ color: getRandomColor(), transparent: true, opacity: 0.85 });
           const mesh = new THREE.Mesh(geometry, material);
 
-          mesh.position.set(index % 10, elevation / 2, Math.floor(index / 10));
-          mesh.userData = { tag, id, classList, zIndex };
+          mesh.position.set(
+            (index % 10) * 2,  // spread on x-axis
+            elevation / 2,     // sit on base plane
+            Math.floor(index / 10) * 2 // spread on z-axis (depth)
+          );
+
+          mesh.userData = { tag, id, classList, zIndex, width, height };
           elements.push(mesh);
           scene.add(mesh);
         });
-
-        // // Add a representation of the DOM with screen dimensions
-        // const screenWidth = window.innerWidth / 100; // Scale down for visualization
-        // const screenHeight = window.innerHeight / 100; // Scale down for visualization
-        // const screenGeometry = new THREE.BoxGeometry(screenWidth, 1, screenHeight);
-        // const screenMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00, opacity: 0.5, transparent: true });
-        // const screenMesh = new THREE.Mesh(screenGeometry, screenMaterial);
-        // screenMesh.position.set(0, -0.05, 0); // Slightly below the grid
-        // scene.add(screenMesh);
 
         camera.position.set(5, 5, 20);
         camera.lookAt(scene.position);
@@ -544,7 +562,7 @@ export function activate(context: vscode.ExtensionContext) {
         outputChannel.appendLine(JSON.stringify(zIndexes, null, 2)); // Pretty print
         outputChannel.show(); // Opens the output channel
 
-        createWebview(context, zIndexes, document);
+        createWebview(zIndexes, document);
         highlightZIndexDeclarations(zIndexes, document);
       } else {
         vscode.window.showWarningMessage("Please open a CSS file to parse z-index values.");
