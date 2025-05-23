@@ -54,5 +54,9 @@
     "fs": "^0.0.1-security",
     "jquery": "^3.7.1",
     "postcss": "^8.5.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bodlasahith/css-z-index.git"
   }
 }
